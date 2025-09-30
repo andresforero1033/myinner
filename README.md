@@ -145,6 +145,28 @@ Ahora puedes actualizar también username y email desde /api/profile/ (PUT/PATCH
 Campos soportados (multipart): username, email, first_name, last_name, nickname, age, gender, profile_image, remove_image.
 
 ## 16. Licencia
+
+## 17. Tests Rápidos
+
+Ejecutar todos los tests:
+```
+python manage.py test -v 2
+```
+
+Ejecutar un test específico:
+```
+python manage.py test users.tests.AuthTests.test_login_with_username -v 2
+```
+
+Cobertura (si instalas coverage):
+```
+coverage run manage.py test && coverage html
+```
+
+Incluidas pruebas básicas de:
+- Registro y login (username / email / credenciales inválidas)
+- Creación y filtrado de notas (q, tag)
+- Normalización y deduplicación de etiquetas
 Uso personal / educativo.
 
 ---
