@@ -116,3 +116,62 @@ class NoteTagTests(TestCase):
 		resp2 = self.client.post(self.notes_url, payload_no_tags, format='json')
 		self.assertEqual(resp2.status_code, 201)
 		self.assertEqual(resp2.data['tags'], [])
+
+
+class PaginationTests(TestCase):
+	"""
+	Pruebas para paginación de notas.
+	
+	Esquema de implementación futura:
+	- Backend: Añadir PageNumberPagination en settings/views
+	- Frontend: Componente Pagination con botones prev/next
+	- Tests: Validar page_size, links, navegación, edge cases
+	"""
+	
+	def setUp(self):
+		self.client = APIClient()
+		self.user = User.objects.create_user(username='paguser', email='pag@test.com', password='Pass123')
+		self.client.post('/api/auth/login/', {'username': 'paguser', 'password': 'Pass123'}, format='json')
+		self.notes_url = '/api/notes/'
+	
+	def test_paginated_response_structure(self):
+		"""
+		TODO: Verificar estructura de respuesta paginada:
+		- count: total de elementos
+		- next: URL página siguiente (o null)
+		- previous: URL página anterior (o null)  
+		- results: array de notas
+		"""
+		self.skipTest("Pendiente implementar paginación en backend")
+	
+	def test_page_size_limit(self):
+		"""
+		TODO: Crear 25 notas, verificar que page_size=10 devuelve 10 items
+		y que existen 3 páginas (count=25, 10+10+5)
+		"""
+		self.skipTest("Pendiente implementar paginación en backend")
+	
+	def test_navigation_links(self):
+		"""
+		TODO: Verificar que next/previous links funcionan correctamente:
+		- Página 1: previous=null, next!=null
+		- Página intermedia: ambos != null
+		- Última página: next=null, previous!=null
+		"""
+		self.skipTest("Pendiente implementar paginación en backend")
+	
+	def test_pagination_with_search_and_filters(self):
+		"""
+		TODO: Verificar que paginación funciona con ?q= y ?tag=
+		contando solo resultados filtrados
+		"""
+		self.skipTest("Pendiente implementar paginación en backend")
+	
+	def test_invalid_page_numbers(self):
+		"""
+		TODO: Manejar casos edge:
+		- ?page=0 o negativo
+		- ?page=999999 (mayor al máximo)
+		- ?page=abc (no numérico)
+		"""
+		self.skipTest("Pendiente implementar paginación en backend")
