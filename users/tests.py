@@ -50,3 +50,28 @@ class AuthTests(TestCase):
 		me = self.client.get(self.me_url)
 		# Dependiendo de middleware/CSRF puede devolver 403 al no tener sesión válida
 		self.assertIn(me.status_code, (401, 403))
+
+	def test_update_profile_username_email(self):
+		# Crear usuario y autenticar
+		user = User.objects.create_user(username='olduser', email='old@test.com', password='Pass123')
+		self.client.post(self.login_url, {'username': 'olduser', 'password': 'Pass123'}, format='json')
+		
+		# Actualizar username y email (usando multipart para coincidir con ProfileView parsers)
+		update_payload = {
+			'username': 'newuser',
+			'email': 'new@test.com'
+		}
+		resp = self.client.patch('/api/profile/', update_payload)  # Sin format='json'
+		self.assertEqual(resp.status_code, 200)
+		self.assertEqual(resp.data['username'], 'newuser')
+		self.assertEqual(resp.data['email'], 'new@test.com')
+		
+		# Verificar en base de datos
+		user.refresh_from_db()
+		self.assertEqual(user.username, 'newuser')
+		self.assertEqual(user.email, 'new@test.com')
+		
+		# Verificar que el usuario puede hacer login con nuevo username
+		self.client.post('/api/auth/logout/', format='json')
+		login_resp = self.client.post(self.login_url, {'username': 'newuser', 'password': 'Pass123'}, format='json')
+		self.assertEqual(login_resp.status_code, 200)
