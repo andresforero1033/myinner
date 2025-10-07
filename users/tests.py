@@ -152,3 +152,151 @@ class EmailVerificationTests(TestCase):
 		para que frontend muestre estado y botón de reenviar si necesario
 		"""
 		self.skipTest("Pendiente implementar sistema de verificación de email")
+
+
+class TagAutocompleteTests(TestCase):
+	def setUp(self):
+		self.client = APIClient()
+		self.user = User.objects.create_user(
+			username='testuser',
+			email='test@example.com', 
+			password='testpass123'
+		)
+		self.client.force_authenticate(user=self.user)
+		self.autocomplete_url = '/api/tags/'
+
+		# Crear tags de prueba con diferentes cantidades de uso
+		from notes.models import Tag, Note
+		
+		# Tags con diferentes frecuencias de uso
+		self.tag_python = Tag.objects.create(name='python')
+		self.tag_django = Tag.objects.create(name='django')
+		self.tag_javascript = Tag.objects.create(name='javascript')
+		self.tag_programming = Tag.objects.create(name='programming')
+		self.tag_web = Tag.objects.create(name='web')
+		
+		# Crear notas para simular uso de tags
+		note1 = Note.objects.create(user=self.user, title='Note 1', content='Content 1')
+		note1.tags.set([self.tag_python, self.tag_django])  # python: 3 usos, django: 2 usos
+		
+		note2 = Note.objects.create(user=self.user, title='Note 2', content='Content 2') 
+		note2.tags.set([self.tag_python, self.tag_programming])  # python: 3, programming: 1
+		
+		note3 = Note.objects.create(user=self.user, title='Note 3', content='Content 3')
+		note3.tags.set([self.tag_python, self.tag_django])  # python: 3, django: 2
+		
+		note4 = Note.objects.create(user=self.user, title='Note 4', content='Content 4')
+		note4.tags.set([self.tag_javascript])  # javascript: 1 uso
+
+	def test_autocomplete_requires_authentication(self):
+		"""Test que el endpoint requiere autenticación"""
+		self.client.logout()
+		response = self.client.get(self.autocomplete_url)
+		self.assertEqual(response.status_code, 403)
+
+	def test_autocomplete_without_query_returns_all_tags_ordered_by_usage(self):
+		"""Test que sin query devuelve todas las tags ordenadas por uso"""
+		response = self.client.get(self.autocomplete_url)
+		self.assertEqual(response.status_code, 200)
+		
+		data = response.json()
+		self.assertIn('tags', data)
+		self.assertIn('query', data) 
+		self.assertIn('count', data)
+		self.assertEqual(data['query'], '')
+		self.assertEqual(len(data['tags']), 5)  # Todos los tags
+		
+		# Verificar orden por uso: python(3) > django(2) > javascript,programming,web(1 cada uno)
+		tags = data['tags']
+		self.assertEqual(tags[0]['name'], 'python')
+		self.assertEqual(tags[0]['usage_count'], 3)
+		self.assertEqual(tags[1]['name'], 'django') 
+		self.assertEqual(tags[1]['usage_count'], 2)
+		
+		# Los siguientes tienen mismo uso (1), deben estar ordenados alfabéticamente
+		remaining_names = [tag['name'] for tag in tags[2:]]
+		self.assertEqual(remaining_names, ['javascript', 'programming', 'web'])
+
+	def test_autocomplete_with_query_filters_tags(self):
+		"""Test filtrado por query parameter"""
+		response = self.client.get(f'{self.autocomplete_url}?q=prog')
+		self.assertEqual(response.status_code, 200)
+		
+		data = response.json()
+		self.assertEqual(data['query'], 'prog')
+		self.assertEqual(len(data['tags']), 1)
+		self.assertEqual(data['tags'][0]['name'], 'programming')
+
+	def test_autocomplete_case_insensitive_query(self):
+		"""Test que la búsqueda es case insensitive"""
+		response = self.client.get(f'{self.autocomplete_url}?q=PYTHON')
+		self.assertEqual(response.status_code, 200)
+		
+		data = response.json()
+		self.assertEqual(len(data['tags']), 1)
+		self.assertEqual(data['tags'][0]['name'], 'python')
+
+	def test_autocomplete_respects_limit_parameter(self):
+		"""Test que el parámetro limit funciona correctamente"""
+		response = self.client.get(f'{self.autocomplete_url}?limit=2')
+		self.assertEqual(response.status_code, 200)
+		
+		data = response.json()
+		self.assertEqual(len(data['tags']), 2)
+		# Debe devolver los 2 más usados: python y django
+		self.assertEqual(data['tags'][0]['name'], 'python')
+		self.assertEqual(data['tags'][1]['name'], 'django')
+
+	def test_autocomplete_limit_maximum_is_50(self):
+		"""Test que el límite máximo es 50"""
+		response = self.client.get(f'{self.autocomplete_url}?limit=100')
+		self.assertEqual(response.status_code, 200)
+		# No debe fallar, pero internamente usa máximo 50
+
+	def test_autocomplete_no_matches_returns_empty(self):
+		"""Test que query sin matches devuelve array vacío"""
+		response = self.client.get(f'{self.autocomplete_url}?q=nonexistent')
+		self.assertEqual(response.status_code, 200)
+		
+		data = response.json()
+		self.assertEqual(data['query'], 'nonexistent')
+		self.assertEqual(len(data['tags']), 0)
+		self.assertEqual(data['count'], 0)
+
+	def test_autocomplete_empty_query_parameter(self):
+		"""Test que query vacía se maneja correctamente"""
+		response = self.client.get(f'{self.autocomplete_url}?q=')
+		self.assertEqual(response.status_code, 200)
+		
+		data = response.json()
+		self.assertEqual(data['query'], '')
+		self.assertEqual(len(data['tags']), 5)  # Devuelve todos
+
+	def test_autocomplete_response_structure(self):
+		"""Test que la estructura de respuesta es correcta"""
+		response = self.client.get(f'{self.autocomplete_url}?q=web&limit=5')
+		self.assertEqual(response.status_code, 200)
+		
+		data = response.json()
+		
+		# Verificar estructura principal
+		self.assertIn('tags', data)
+		self.assertIn('query', data)
+		self.assertIn('count', data)
+		
+		# Verificar estructura de cada tag
+		if data['tags']:
+			tag = data['tags'][0]
+			self.assertIn('id', tag)
+			self.assertIn('name', tag)
+			self.assertIn('usage_count', tag)
+			self.assertIn('created_at', tag)
+
+	def test_autocomplete_partial_match(self):
+		"""Test matching parcial en nombres de tags"""
+		response = self.client.get(f'{self.autocomplete_url}?q=java')
+		self.assertEqual(response.status_code, 200)
+		
+		data = response.json()
+		self.assertEqual(len(data['tags']), 1)
+		self.assertEqual(data['tags'][0]['name'], 'javascript')

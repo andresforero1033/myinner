@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     RegisterView, LoginView, LogoutView, ProfileView,
     PreferenceView, NoteListCreateView, NoteRetrieveUpdateDestroyView,
-    CSRFTokenView, HealthCheckView, MeView, APIRootView
+    CSRFTokenView, HealthCheckView, MeView, APIRootView, TagAutocompleteView
 )
 
 urlpatterns = [
@@ -17,4 +17,5 @@ urlpatterns = [
     path('preferences/', PreferenceView.as_view(), name='preferences'),
     path('notes/', NoteListCreateView.as_view(), name='notes-list-create'),
     path('notes/<int:pk>/', NoteRetrieveUpdateDestroyView.as_view(), name='note-detail'),
+    path('tags/', TagAutocompleteView.as_view(), name='tags-autocomplete'),
 ]

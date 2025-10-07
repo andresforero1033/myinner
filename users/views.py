@@ -4,14 +4,14 @@ from django.middleware.csrf import get_token
 from rest_framework import generics, permissions, views
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
-from django.db.models import Q
+from django.db.models import Q, Count
 
 from .models import CustomUser, UserPreference
 from .serializers import (
     RegisterSerializer, LoginSerializer, UserSerializer,
-    UserPreferenceSerializer, NoteSerializer
+    UserPreferenceSerializer, NoteSerializer, TagSerializer
 )
-from notes.models import Note
+from notes.models import Note, Tag
 
 
 class RegisterView(generics.CreateAPIView):
@@ -80,7 +80,8 @@ class APIRootView(views.APIView):
             'health': base + 'health/',
             'profile': base + 'profile/',
             'preferences': base + 'preferences/',
-            'notes': base + 'notes/'
+            'notes': base + 'notes/',
+            'tags': base + 'tags/'
         })
 
 
@@ -157,3 +158,37 @@ class NoteRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
         if not self.request.user.is_authenticated:
             return Note.objects.none()
         return Note.objects.filter(user=self.request.user)
+
+
+class TagAutocompleteView(views.APIView):
+    """
+    Endpoint para autocomplete de etiquetas.
+    GET /api/tags/?q=pre&limit=10
+    
+    Retorna tags ordenados por:
+    1. Frecuencia de uso (descendente)  
+    2. Nombre alfabético (ascendente)
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        query = request.query_params.get('q', '').strip()
+        limit = min(int(request.query_params.get('limit', 10)), 50)  # Máximo 50
+        
+        # Filtrar tags que contienen la query (case insensitive)
+        queryset = Tag.objects.all()
+        
+        if query:
+            queryset = queryset.filter(name__icontains=query)
+        
+        # Anotar con conteo de uso y ordenar por uso descendente, luego alfabético
+        queryset = queryset.annotate(
+            usage_count=Count('notes', distinct=True)
+        ).order_by('-usage_count', 'name')[:limit]
+        
+        serializer = TagSerializer(queryset, many=True)
+        return Response({
+            'tags': serializer.data,
+            'query': query,
+            'count': len(serializer.data)
+        })

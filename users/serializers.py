@@ -180,3 +180,12 @@ class NoteSerializer(serializers.ModelSerializer):
         if tags_list is not None:
             self._save_tags(instance, tags_list)
         return instance
+
+
+class TagSerializer(serializers.ModelSerializer):
+    usage_count = serializers.IntegerField(read_only=True)
+    
+    class Meta:
+        model = Tag
+        fields = ['id', 'name', 'usage_count', 'created_at']
+        read_only_fields = ['id', 'created_at']
