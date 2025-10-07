@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from encrypted_model_fields.fields import EncryptedEmailField, EncryptedCharField
 
 
 class CustomUser(AbstractUser):
@@ -10,6 +11,12 @@ class CustomUser(AbstractUser):
 		('O', 'Otro'),
 		('P', 'Prefiero no decir'),
 	]
+	# Campos encriptados para proteger información sensible
+	email = EncryptedEmailField(max_length=254, unique=True)
+	first_name = EncryptedCharField(max_length=150, blank=True)
+	last_name = EncryptedCharField(max_length=150, blank=True)
+	
+	# Campos no sensibles permanecen sin encriptar
 	nickname = models.CharField(max_length=50, blank=True, null=True)
 	age = models.PositiveIntegerField(blank=True, null=True)
 	gender = models.CharField(max_length=2, choices=GENDER_CHOICES, blank=True, null=True)

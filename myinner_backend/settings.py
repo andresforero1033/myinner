@@ -252,6 +252,27 @@ REST_FRAMEWORK = {
 AUTH_USER_MODEL = 'users.CustomUser'
 
 # =============================================================================
+# FIELD-LEVEL ENCRYPTION CONFIGURATION
+# =============================================================================
+
+# Clave de encriptación para campos sensibles
+# IMPORTANTE: En producción debe estar en variables de entorno
+FIELD_ENCRYPTION_KEY = config(
+    'FIELD_ENCRYPTION_KEY',
+    default='tu-clave-de-encriptacion-32-bytes-cambiar-en-produccion'
+)
+
+# Validar que la clave tenga el tamaño correcto (32 bytes para Fernet)
+if len(FIELD_ENCRYPTION_KEY.encode()) != 32:
+    import warnings
+    if DEBUG:
+        warnings.warn(
+            "FIELD_ENCRYPTION_KEY debe tener exactamente 32 bytes. "
+            "Usa: from cryptography.fernet import Fernet; print(Fernet.generate_key())",
+            UserWarning
+        )
+
+# =============================================================================
 # ADDITIONAL SECURITY SETTINGS (PRODUCTION)
 # =============================================================================
 
