@@ -131,7 +131,17 @@ class NoteListCreateView(generics.ListCreateAPIView):
         qs = Note.objects.filter(user=self.request.user)
         q = self.request.query_params.get('q')
         if q:
-            qs = qs.filter(Q(title__icontains=q) | Q(content__icontains=q))
+            # title puede filtrarse en DB; content está encriptado, filtrar en Python
+            title_qs = qs.filter(title__icontains=q)
+            # Para contenido, traemos ids y filtramos manualmente
+            content_ids = []
+            for note in qs.exclude(id__in=title_qs.values_list('id', flat=True)):
+                try:
+                    if q.lower() in str(note.content).lower():
+                        content_ids.append(note.id)
+                except Exception:
+                    continue
+            qs = qs.filter(Q(id__in=title_qs.values_list('id', flat=True)) | Q(id__in=content_ids))
         tag_param = self.request.query_params.get('tag')
         if tag_param:
             tags = [t.strip().lower() for t in tag_param.split(',') if t.strip()]

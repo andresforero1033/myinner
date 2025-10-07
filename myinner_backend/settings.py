@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     # Terceros
     'rest_framework',
     'corsheaders',
+    'auditlog',  # Sistema de auditoría
     # Apps propias
     'users',
     'notes',
@@ -55,6 +56,10 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'auditlog.middleware.AuditlogMiddleware',  # Middleware de auditoría base
+    'audit.middleware.AuditMiddleware',  # Middleware de auditoría personalizado
+    'audit.middleware.AuthenticationAuditMiddleware',  # Auditoría de autenticación
+    'audit.middleware.DataAccessAuditMiddleware',  # Auditoría de acceso a datos
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -64,7 +69,7 @@ ROOT_URLCONF = 'myinner_backend.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -361,5 +366,38 @@ LOGGING = {
             'level': 'DEBUG' if DEBUG else 'INFO',
             'propagate': False,
         },
+        'auditlog': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
     },
+}
+
+# ===============================
+# Configuración de Auditoría
+# ===============================
+
+# Configuración de django-auditlog
+AUDITLOG_INCLUDE_ALL_MODELS = False  # Solo modelos específicos
+AUDITLOG_DISABLE_ON_RAW_SAVE = False  # Auditar incluso raw saves
+AUDITLOG_DISABLE_BULK_CREATE = False  # Auditar bulk operations
+
+# Configuración personalizada de auditoría
+AUDIT_SETTINGS = {
+    'RETAIN_LOGS_DAYS': config('AUDIT_RETAIN_DAYS', default=365, cast=int),  # 1 año por defecto
+    'ENABLE_API_AUDIT': config('ENABLE_API_AUDIT', default=True, cast=bool),
+    'ENABLE_AUTH_AUDIT': config('ENABLE_AUTH_AUDIT', default=True, cast=bool),
+    'ENABLE_ADMIN_AUDIT': config('ENABLE_ADMIN_AUDIT', default=True, cast=bool),
+    'SENSITIVE_FIELDS': [
+        'password', 'token', 'key', 'secret', 'api_key',
+        'email', 'first_name', 'last_name'  # Campos encriptados
+    ],
+}
+
+# Configuración para captura de IP y User Agent
+AUDIT_IP_CAPTURE = {
+    'ENABLE': True,
+    'PROXY_COUNT': 0,  # Número de proxies en la cadena
+    'PROXY_LIST': [],  # Lista de IPs de proxies confiables
 }

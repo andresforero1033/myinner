@@ -1,6 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from encrypted_model_fields.fields import EncryptedEmailField, EncryptedCharField
+from auditlog.registry import auditlog
+from auditlog.models import AuditlogHistoryField
 
 
 class CustomUser(AbstractUser):
@@ -23,6 +25,9 @@ class CustomUser(AbstractUser):
 	profile_image = models.ImageField(upload_to='profile_images/', blank=True, null=True)
 	created_at = models.DateTimeField(auto_now_add=True)
 	updated_at = models.DateTimeField(auto_now=True)
+	
+	# Campo para historial de auditoría
+	history = AuditlogHistoryField()
 
 	def __str__(self):
 		return self.username
@@ -39,8 +44,18 @@ class UserPreference(models.Model):
 	primary_color = models.CharField(max_length=7, choices=COLOR_CHOICES, default='#007bff')
 	created_at = models.DateTimeField(auto_now_add=True)
 	updated_at = models.DateTimeField(auto_now=True)
+	
+	# Campo para historial de auditoría
+	history = AuditlogHistoryField()
 
 	def __str__(self):
 		return f"Preferencias de {self.user.username}"
 
-# Create your models here.
+
+# Registro de modelos para auditoría
+auditlog.register(
+    CustomUser, 
+    exclude_fields=['password', 'last_login', 'updated_at'],
+    mask_fields=['email', 'first_name', 'last_name']  # Campos encriptados se registran sin contenido
+)
+auditlog.register(UserPreference, exclude_fields=['updated_at'])

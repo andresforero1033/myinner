@@ -87,11 +87,18 @@ class LoginSerializer(serializers.Serializer):
 
         # Intentar primero si es email
         if identifier and '@' in identifier:
-            try:
-                candidate = CustomUser.objects.get(email__iexact=identifier.lower())
-                user = authenticate(username=candidate.username, password=password)
-            except (CustomUser.DoesNotExist, CustomUser.MultipleObjectsReturned):
-                user = None
+            # Nota: email está encriptado; no podemos filtrar por email directamente.
+            # Fallback: recorrer usuarios y comparar email desencriptado en Python.
+            target = identifier.lower()
+            for candidate in CustomUser.objects.all():
+                try:
+                    if str(candidate.email).lower() == target:
+                        user = authenticate(username=candidate.username, password=password)
+                        if user:
+                            break
+                except Exception:
+                    # Ignorar usuarios con email ilegible
+                    continue
 
         # Intentar como username normal si anterior falló
         if user is None:
