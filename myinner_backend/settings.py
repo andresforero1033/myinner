@@ -12,21 +12,23 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+from decouple import config, Csv
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
+# =============================================================================
+# PRODUCTION SECURITY SETTINGS
+# =============================================================================
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-reemplaza-esto-en-produccion'
+SECRET_KEY = config('SECRET_KEY', default='django-insecure-reemplaza-esto-en-produccion')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=Csv())
 
 
 # Application definition
@@ -77,15 +79,50 @@ TEMPLATES = [
 WSGI_APPLICATION = 'myinner_backend.wsgi.application'
 
 
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+# =============================================================================
+# DATABASE CONFIGURATION
+# =============================================================================
+# Configuración automática: SQLite para desarrollo, PostgreSQL para producción
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# Opción 1: DATABASE_URL completa (preferida para deployment)
+if config('DATABASE_URL', default=None):
+    DATABASES = {
+        'default': dj_database_url.parse(
+            config('DATABASE_URL'),
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
     }
-}
+# Opción 2: Variables individuales de PostgreSQL
+elif not DEBUG or config('USE_POSTGRESQL', default=False, cast=bool):
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('DB_NAME', default='myinner_db'),
+            'USER': config('DB_USER', default='myinner_user'),
+            'PASSWORD': config('DB_PASSWORD', default=''),
+            'HOST': config('DB_HOST', default='localhost'),
+            'PORT': config('DB_PORT', default='5432'),
+            'OPTIONS': {
+                'sslmode': config('DB_SSL_MODE', default='require'),
+                'connect_timeout': 30,
+                'options': '-c default_transaction_isolation=serializable'
+            },
+            'CONN_MAX_AGE': 600,
+            'CONN_HEALTH_CHECKS': True,
+        }
+    }
+# Opción 3: SQLite para desarrollo local
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+            'OPTIONS': {
+                'timeout': 20,
+            }
+        }
+    }
 
 
 # Password validation
@@ -133,31 +170,69 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# CORS (para frontend React)
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',
-    'http://localhost:3001', 
-    'http://localhost:3002',
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:3001',
-    'http://127.0.0.1:3002',
-]
+# =============================================================================
+# CORS & CSRF SECURITY CONFIGURATION
+# =============================================================================
+
+# CORS Origins - Dinámico por ambiente
+if DEBUG:
+    # Desarrollo: múltiples puertos locales
+    CORS_ALLOWED_ORIGINS = [
+        'http://localhost:3000',
+        'http://localhost:3001', 
+        'http://localhost:3002',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:3001',
+        'http://127.0.0.1:3002',
+    ]
+else:
+    # Producción: desde variables de entorno
+    CORS_ALLOWED_ORIGINS = config(
+        'CORS_ALLOWED_ORIGINS', 
+        default='https://tu-dominio.com',
+        cast=Csv()
+    )
+
 CORS_ALLOW_CREDENTIALS = True
 
-# CSRF trusted (Django 4+ exige esquema completo)
-CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:3002',
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:3001',
-    'http://127.0.0.1:3002',
-]
+# CSRF Trusted Origins - Sincronizado con CORS
+if DEBUG:
+    CSRF_TRUSTED_ORIGINS = [
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'http://localhost:3002',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:3001',
+        'http://127.0.0.1:3002',
+    ]
+else:
+    CSRF_TRUSTED_ORIGINS = config(
+        'CSRF_TRUSTED_ORIGINS',
+        default='https://tu-dominio.com',
+        cast=Csv()
+    )
 
-# Cookies en dev (no marcar Secure porque usamos http)
-SESSION_COOKIE_SAMESITE = 'Lax'
-CSRF_COOKIE_SAMESITE = 'Lax'
-# Asegurar nombres explícitos (opcional)
+# =============================================================================
+# COOKIES & SESSION SECURITY
+# =============================================================================
+
+# Configuración segura por ambiente
+if DEBUG:
+    # Desarrollo: HTTP local
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    CSRF_COOKIE_SAMESITE = 'Lax'
+else:
+    # Producción: HTTPS obligatorio
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SAMESITE = 'Strict'
+    CSRF_COOKIE_SAMESITE = 'Strict'
+    SESSION_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_HTTPONLY = True
+
+# Nombres explícitos de cookies
 CSRF_COOKIE_NAME = 'csrftoken'
 SESSION_COOKIE_NAME = 'sessionid'
 
@@ -175,3 +250,95 @@ REST_FRAMEWORK = {
 
 # Modelo de usuario personalizado
 AUTH_USER_MODEL = 'users.CustomUser'
+
+# =============================================================================
+# ADDITIONAL SECURITY SETTINGS (PRODUCTION)
+# =============================================================================
+
+if not DEBUG:
+    # Seguridad HTTPS estricta
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 año
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_SSL_REDIRECT = True
+    
+    # X-Frame-Options para prevenir clickjacking
+    X_FRAME_OPTIONS = 'DENY'
+    
+    # Referrer Policy
+    SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+
+# =============================================================================
+# STATIC & MEDIA FILES CONFIGURATION
+# =============================================================================
+
+STATIC_URL = config('STATIC_URL', default='/static/')
+MEDIA_URL = config('MEDIA_URL', default='/media/')
+
+if not DEBUG:
+    # Producción: rutas absolutas
+    STATIC_ROOT = config('STATIC_ROOT', default='/var/www/myinner/static')
+    MEDIA_ROOT = config('MEDIA_ROOT', default='/var/www/myinner/media')
+    
+    # WhiteNoise para servir archivos estáticos
+    MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+else:
+    # Desarrollo: rutas relativas
+    STATIC_ROOT = BASE_DIR / 'staticfiles'
+    MEDIA_ROOT = BASE_DIR / 'media'
+
+# =============================================================================
+# LOGGING CONFIGURATION
+# =============================================================================
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': config('LOG_LEVEL', default='INFO'),
+            'class': 'logging.FileHandler',
+            'filename': config('LOG_FILE', default=BASE_DIR / 'logs' / 'django.log'),
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'root': {
+        'handlers': ['console', 'file'],
+        'level': config('LOG_LEVEL', default='INFO'),
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': config('LOG_LEVEL', default='INFO'),
+            'propagate': False,
+        },
+        'django.security': {
+            'handlers': ['console', 'file'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'myinner_backend': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+    },
+}

@@ -1,0 +1,3 @@
+# Este directorio contiene los archivos de log de Django
+# Los logs son importantes para debugging y monitoreo en producción
+*.log
